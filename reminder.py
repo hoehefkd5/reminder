@@ -10,7 +10,7 @@ NTFY_SERVER = os.environ.get("NTFY_SERVER", "https://ntfy.sh")
 NTFY_TOPIC = os.environ.get("NTFY_TOPIC")
 BARK_KEY = os.environ.get("BARK_KEY")
 
-CHECK_WINDOW = 5
+CHECK_WINDOW = 15
 
 WEEKMAP = {
 "Mon":0,"Tue":1,"Wed":2,"Thu":3,"Fri":4,"Sat":5,"Sun":6
