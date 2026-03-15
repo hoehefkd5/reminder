@@ -2,7 +2,7 @@ import os
 import json
 import urllib.request
 import urllib.parse
-from datetime import datetime,timedelta,timezone
+from datetime import datetime,timedelta
 
 EVENT_FILE="events.txt"
 STATE_FILE="state.json"
@@ -13,89 +13,64 @@ NTFY_TOPIC=os.environ.get("NTFY_TOPIC")
 
 CHECK_WINDOW=20
 
-UTC8=timezone(timedelta(hours=8))
+WEEKMAP={
+"Mon":0,"Tue":1,"Wed":2,"Thu":3,"Fri":4,"Sat":5,"Sun":6
+}
 
-def now():
-    return datetime.now(UTC8)
+def load_json(file):
 
-def load_json(path):
-    if not os.path.exists(path):
+    if not os.path.exists(file):
         return {}
-    with open(path) as f:
+
+    with open(file,"r") as f:
         return json.load(f)
 
-def save_json(path,data):
-    with open(path,"w") as f:
+def save_json(file,data):
+
+    with open(file,"w") as f:
         json.dump(data,f)
 
-def load_done():
-    if not os.path.exists(DONE_FILE):
-        return []
-    with open(DONE_FILE) as f:
-        return [x.strip() for x in f]
-
 def send(title,msg):
-
-    print(title,msg)
 
     if not NTFY_TOPIC:
         return
 
-    url=f"{NTFY_SERVER}/{NTFY_TOPIC}"
+    url=NTFY_SERVER.rstrip("/")
+
+    data={
+    "topic":NTFY_TOPIC,
+    "title":title,
+    "message":msg
+    }
 
     req=urllib.request.Request(
         url,
-        data=msg.encode(),
+        data=json.dumps(data).encode(),
         method="POST"
     )
 
-    req.add_header("Title",title)
+    req.add_header("Content-Type","application/json")
 
     urllib.request.urlopen(req)
 
 def in_window(t):
 
-    diff=now()-t
+    now=datetime.now()
 
-    return timedelta(minutes=0)<=diff<=timedelta(minutes=CHECK_WINDOW)
-
-def sent_today(state,key):
-
-    today=now().strftime("%Y-%m-%d")
-
-    if key in state and state[key]==today:
-        return True
-
-    state[key]=today
-
-    return False
-
-def check_once(time_str,event,state):
-
-    t=datetime.strptime(time_str,"%Y-%m-%d %H:%M").replace(tzinfo=UTC8)
-
-    key="once_"+event
-
-    if in_window(t) and not sent_today(state,key):
-
-        send("事件提醒",event)
-
-def check_daily(t,event,state):
-
-    today=now().strftime("%Y-%m-%d")
-
-    et=datetime.strptime(today+" "+t,"%Y-%m-%d %H:%M").replace(tzinfo=UTC8)
-
-    key="daily_"+event
-
-    if in_window(et) and not sent_today(state,key):
-
-        send("每日提醒",event)
-
-print("开始扫描")
+    return timedelta(0)<=now-t<=timedelta(minutes=CHECK_WINDOW)
 
 state=load_json(STATE_FILE)
-done=load_done()
+
+done=set()
+
+if os.path.exists(DONE_FILE):
+
+    with open(DONE_FILE) as f:
+
+        for l in f:
+            done.add(l.strip())
+
+today=datetime.now().strftime("%Y-%m-%d")
 
 with open(EVENT_FILE,encoding="utf-8") as f:
 
@@ -108,28 +83,94 @@ with open(EVENT_FILE,encoding="utf-8") as f:
 
         try:
 
-            time_part,event,_=line.split(",")
+            time_part,event=line.split(",",1)
 
-        except:
+            key=line
 
-            parts=line.split(",")
+            if event in done:
+                continue
 
-            time_part=parts[0]
-            event=parts[1]
+            if key in state and state[key]==today:
+                continue
 
-        if event in done:
-            continue
+            if "|" in time_part:
 
-        if time_part.startswith("daily"):
+                base,adv=time_part.split("|")
 
-            t=time_part.split()[1]
+                adv=int(adv)
 
-            check_daily(t,event,state)
+                t=datetime.strptime(base,"%Y-%m-%d %H:%M")
 
-        elif len(time_part)==16:
+                t-=timedelta(minutes=adv)
 
-            check_once(time_part,event,state)
+                if in_window(t):
+
+                    send("提前提醒",event)
+
+                    state[key]=today
+
+            elif time_part.startswith("daily"):
+
+                t=time_part.split()[1]
+
+                t=datetime.strptime(today+" "+t,"%Y-%m-%d %H:%M")
+
+                if in_window(t):
+
+                    send("每日提醒",event)
+
+                    state[key]=today
+
+            elif time_part.startswith("weekly"):
+
+                _,d,t=time_part.split()
+
+                if datetime.now().weekday()==WEEKMAP[d]:
+
+                    t=datetime.strptime(today+" "+t,"%Y-%m-%d %H:%M")
+
+                    if in_window(t):
+
+                        send("每周提醒",event)
+
+                        state[key]=today
+
+            elif time_part.startswith("monthly"):
+
+                _,d,t=time_part.split()
+
+                if datetime.now().day==int(d):
+
+                    t=datetime.strptime(today+" "+t,"%Y-%m-%d %H:%M")
+
+                    if in_window(t):
+
+                        send("每月提醒",event)
+
+                        state[key]=today
+
+            elif len(time_part)==16:
+
+                t=datetime.strptime(time_part,"%Y-%m-%d %H:%M")
+
+                if in_window(t):
+
+                    send("事件提醒",event)
+
+                    state[key]=today
+
+            elif len(time_part)==10:
+
+                if time_part==today:
+
+                    send("今日任务",event)
+
+                    state[key]=today
+
+        except Exception as e:
+
+            print("解析错误",line,e)
 
 save_json(STATE_FILE,state)
 
-print("扫描结束")
+print("任务检查完成")
