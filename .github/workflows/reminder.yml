@@ -5,6 +5,9 @@ on:
     - cron: '*/10 * * * *'
   workflow_dispatch:
 
+permissions:
+  contents: write
+
 jobs:
 
   reminder:
@@ -29,5 +32,5 @@ jobs:
           git config --global user.name "bot"
           git config --global user.email "bot@github.com"
           git add state.json
-          git commit -m "update state" || exit 0
+          git commit -m "update reminder state $(date)" || exit 0
           git push
