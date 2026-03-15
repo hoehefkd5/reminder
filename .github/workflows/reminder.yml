@@ -30,7 +30,7 @@ jobs:
       
       - name: run reminder
         env:
-          NTFY_TOPIC: ${{ secrets.NTFY_TOPIC }}
+          NTFY_TOPIC: "lhr790827" #${{ secrets.NTFY_TOPIC }}
         run: python reminder.py
 
       - name: save state
