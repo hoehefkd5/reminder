@@ -24,6 +24,9 @@ jobs:
 
       - name: check environment variable
         run: echo ${{ secrets.NTFY_TOPIC }}
+
+      - name: Debug environment variable
+        run: echo "NTFY_TOPIC=${{ secrets.NTFY_TOPIC }}"
       
       - name: run reminder
         env:
