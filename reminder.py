@@ -2,109 +2,102 @@ import os
 import json
 import urllib.request
 import urllib.parse
-from datetime import datetime, timedelta
+from datetime import datetime,timedelta,timezone
 
-EVENT_FILE = "events.txt"
+EVENT_FILE="events.txt"
+STATE_FILE="state.json"
+DONE_FILE="done.txt"
 
-NTFY_SERVER = os.environ.get("NTFY_SERVER", "https://ntfy.sh")
-NTFY_TOPIC = os.environ.get("NTFY_TOPIC")
-BARK_KEY = os.environ.get("BARK_KEY")
+NTFY_SERVER=os.environ.get("NTFY_SERVER","https://ntfy.sh")
+NTFY_TOPIC=os.environ.get("NTFY_TOPIC")
 
-CHECK_WINDOW = 15
+CHECK_WINDOW=20
 
-WEEKMAP = {
-"Mon":0,"Tue":1,"Wed":2,"Thu":3,"Fri":4,"Sat":5,"Sun":6
-}
+UTC8=timezone(timedelta(hours=8))
 
-def send_notification(title, content):
+def now():
+    return datetime.now(UTC8)
 
-    if NTFY_TOPIC:
-        try:
-            url = NTFY_SERVER.rstrip("/")
-            data = {"topic":NTFY_TOPIC,"title":title,"message":content}
+def load_json(path):
+    if not os.path.exists(path):
+        return {}
+    with open(path) as f:
+        return json.load(f)
 
-            req = urllib.request.Request(
-                url,
-                data=json.dumps(data).encode(),
-                method="POST"
-            )
+def save_json(path,data):
+    with open(path,"w") as f:
+        json.dump(data,f)
 
-            req.add_header("Content-Type","application/json")
+def load_done():
+    if not os.path.exists(DONE_FILE):
+        return []
+    with open(DONE_FILE) as f:
+        return [x.strip() for x in f]
 
-            urllib.request.urlopen(req)
+def send(title,msg):
 
-            print("ntfy 推送成功")
+    print(title,msg)
 
-        except Exception as e:
-            print("ntfy 推送失败",e)
+    if not NTFY_TOPIC:
+        return
 
-    elif BARK_KEY:
-        try:
-            url=f"https://api.day.app/{BARK_KEY}/{urllib.parse.quote(title)}/{urllib.parse.quote(content)}"
-            urllib.request.urlopen(url)
-            print("Bark 推送成功")
-        except Exception as e:
-            print("Bark 推送失败",e)
+    url=f"{NTFY_SERVER}/{NTFY_TOPIC}"
 
+    req=urllib.request.Request(
+        url,
+        data=msg.encode(),
+        method="POST"
+    )
 
-def in_window(event_time):
+    req.add_header("Title",title)
 
-    now=datetime.now()
+    urllib.request.urlopen(req)
 
-    diff=now-event_time
+def in_window(t):
+
+    diff=now()-t
 
     return timedelta(minutes=0)<=diff<=timedelta(minutes=CHECK_WINDOW)
 
+def sent_today(state,key):
 
-def check_daily(t,event):
+    today=now().strftime("%Y-%m-%d")
 
-    today=datetime.now().strftime("%Y-%m-%d")
+    if key in state and state[key]==today:
+        return True
 
-    event_time=datetime.strptime(today+" "+t,"%Y-%m-%d %H:%M")
+    state[key]=today
 
-    if in_window(event_time):
-        send_notification("每日提醒",event)
+    return False
 
+def check_once(time_str,event,state):
 
-def check_weekly(day,t,event):
+    t=datetime.strptime(time_str,"%Y-%m-%d %H:%M").replace(tzinfo=UTC8)
 
-    today=datetime.now()
+    key="once_"+event
 
-    if today.weekday()==WEEKMAP[day]:
+    if in_window(t) and not sent_today(state,key):
 
-        event_time=datetime.strptime(
-            today.strftime("%Y-%m-%d")+" "+t,
-            "%Y-%m-%d %H:%M"
-        )
+        send("事件提醒",event)
 
-        if in_window(event_time):
-            send_notification("每周提醒",event)
+def check_daily(t,event,state):
 
+    today=now().strftime("%Y-%m-%d")
 
-def check_monthly(d,t,event):
+    et=datetime.strptime(today+" "+t,"%Y-%m-%d %H:%M").replace(tzinfo=UTC8)
 
-    today=datetime.now()
+    key="daily_"+event
 
-    if today.day==int(d):
+    if in_window(et) and not sent_today(state,key):
 
-        event_time=datetime.strptime(
-            today.strftime("%Y-%m-%d")+" "+t,
-            "%Y-%m-%d %H:%M"
-        )
+        send("每日提醒",event)
 
-        if in_window(event_time):
-            send_notification("每月提醒",event)
+print("开始扫描")
 
+state=load_json(STATE_FILE)
+done=load_done()
 
-print("开始检查任务")
-
-if not os.path.exists(EVENT_FILE):
-    print("events.txt 不存在")
-    exit()
-
-today=datetime.now().strftime("%Y-%m-%d")
-
-with open(EVENT_FILE,"r",encoding="utf-8") as f:
+with open(EVENT_FILE,encoding="utf-8") as f:
 
     for line in f:
 
@@ -115,55 +108,28 @@ with open(EVENT_FILE,"r",encoding="utf-8") as f:
 
         try:
 
-            time_part,event=line.split(",",1)
+            time_part,event,_=line.split(",")
 
-            event=event.strip()
+        except:
 
-            if "|" in time_part:
+            parts=line.split(",")
 
-                base,advance=time_part.split("|")
+            time_part=parts[0]
+            event=parts[1]
 
-                advance=int(advance)
+        if event in done:
+            continue
 
-                event_time=datetime.strptime(base,"%Y-%m-%d %H:%M")
+        if time_part.startswith("daily"):
 
-                event_time-=timedelta(minutes=advance)
+            t=time_part.split()[1]
 
-                if in_window(event_time):
-                    send_notification("提前提醒",event)
+            check_daily(t,event,state)
 
-            elif time_part.startswith("daily"):
+        elif len(time_part)==16:
 
-                t=time_part.split()[1]
+            check_once(time_part,event,state)
 
-                check_daily(t,event)
+save_json(STATE_FILE,state)
 
-            elif time_part.startswith("weekly"):
-
-                _,day,t=time_part.split()
-
-                check_weekly(day,t,event)
-
-            elif time_part.startswith("monthly"):
-
-                _,d,t=time_part.split()
-
-                check_monthly(d,t,event)
-
-            elif len(time_part)==16:
-
-                event_time=datetime.strptime(time_part,"%Y-%m-%d %H:%M")
-
-                if in_window(event_time):
-                    send_notification("事件提醒",event)
-
-            elif len(time_part)==10:
-
-                if time_part==today:
-                    send_notification("今日待办",event)
-
-        except Exception as e:
-
-            print("解析失败",line,e)
-
-print("任务检查完成")
+print("扫描结束")
