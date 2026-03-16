@@ -1,28 +1,26 @@
 import os
 import urllib.request
 
-NTFY_TOPIC = os.environ.get("NTFY_TOPIC")
-EVENT_FILE = "events.txt"
+TOPIC=os.environ.get("NTFY_TOPIC")
 
-url = f"https://ntfy.sh/{NTFY_TOPIC}/json?poll=1"
+url=f"https://ntfy.sh/{TOPIC}/json?poll=1"
 
-print("监听 ntfy 命令...")
-
-resp = urllib.request.urlopen(url)
+resp=urllib.request.urlopen(url)
 
 for line in resp:
 
-    try:
-        data = line.decode()
+    msg=line.decode()
 
-        if "add " in data:
+    if "add " in msg:
 
-            cmd=data.split("add ")[1].split('"')[0]
+        task=msg.split("add ")[1].split('"')[0]
 
-            print("收到任务:",cmd)
+        with open("events.txt","a",encoding="utf-8") as f:
+            f.write(task+"\n")
 
-            with open(EVENT_FILE,"a",encoding="utf-8") as f:
-                f.write(cmd+"\n")
+    if "done " in msg:
 
-    except:
-        pass
+        task=msg.split("done ")[1].split('"')[0]
+
+        with open("done.txt","a",encoding="utf-8") as f:
+            f.write(task+"\n")
