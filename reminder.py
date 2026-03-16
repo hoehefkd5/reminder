@@ -4,7 +4,7 @@ import urllib.request
 from datetime import datetime,timedelta
 from ai_parser import parse
 
-NTFY_SERVER=os.environ.get("NTFY_SERVER","https://ntfy.sh")
+NTFY_SERVER=os.environ.get("NTFY_SERVER")
 NTFY_TOPIC=os.environ.get("NTFY_TOPIC")
 
 CHECK_WINDOW=60
