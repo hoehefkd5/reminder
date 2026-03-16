@@ -1,8 +1,8 @@
-name: Reminder System
+name: AI Reminder
 
 on:
   schedule:
-    - cron: '*/10 * * * *'
+    - cron: '*/5 * * * *'
   workflow_dispatch:
 
 permissions:
@@ -10,7 +10,7 @@ permissions:
 
 jobs:
 
-  reminder:
+  run:
 
     runs-on: ubuntu-latest
 
@@ -22,25 +22,15 @@ jobs:
         with:
           python-version: '3.10'
 
-      - name: test ntfy
-        run: |
-          curl -H "Title: test hello" -d "hello from github" https://ehovtfqbqxad.ap-southeast-1.clawcloudrun.com/lhr790827
-
-      - name: check environment variable
-        run: echo ${{ secrets.NTFY_TOPIC }}
-
-      - name: Debug environment variable
-        run: echo "NTFY_TOPIC=${{ secrets.NTFY_TOPIC }}"
-      
-      - name: run reminder
+      - run: python reminder.py
         env:
           NTFY_TOPIC: ${{ secrets.NTFY_TOPIC }}
-        run: python reminder.py
 
-      - name: save state
-        run: |
-          git config --global user.name "bot"
-          git config --global user.email "bot@github.com"
-          git add state.json
-          git commit -m "update reminder state $(date)" || exit 0
+      - run: python stats.py
+
+      - run: |
+          git config --global user.name bot
+          git config --global user.email bot@github.com
+          git add .
+          git commit -m "update data" || exit 0
           git push
