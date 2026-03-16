@@ -1,0 +1,22 @@
+<!DOCTYPE html>
+<html>
+<head>
+<title>任务日历</title>
+</head>
+
+<body>
+
+<h1>任务列表</h1>
+
+<pre id="tasks"></pre>
+
+<script>
+
+fetch("../events.txt")
+.then(r=>r.text())
+.then(t=>document.getElementById("tasks").innerText=t)
+
+</script>
+
+</body>
+</html>
