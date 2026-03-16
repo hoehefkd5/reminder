@@ -24,7 +24,7 @@ jobs:
 
       - name: test ntfy
         run: |
-          curl -H "Title: test" -d "hello from github" https://ehovtfqbqxad.ap-southeast-1.clawcloudrun.com/lhr790827
+          curl -H "Title: test hello" -d "hello from github" https://ehovtfqbqxad.ap-southeast-1.clawcloudrun.com/lhr790827
 
       - name: check environment variable
         run: echo ${{ secrets.NTFY_TOPIC }}
