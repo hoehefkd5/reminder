@@ -7,7 +7,7 @@ from ai_parser import parse
 NTFY_SERVER=os.environ.get("NTFY_SERVER")
 NTFY_TOPIC=os.environ.get("NTFY_TOPIC")
 
-CHECK_WINDOW=60
+CHECK_WINDOW=180
 
 def send(msg):
 
@@ -31,7 +31,9 @@ with open("events.txt",encoding="utf-8") as f:
             continue
 
         t=parse(line)
-
+        print("当前时间:",now)
+        print("事件:",line)
+        print("解析时间:",t)
         if isinstance(t,datetime):
 
             if now>=t and now<=t+timedelta(minutes=CHECK_WINDOW):
