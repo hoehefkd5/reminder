@@ -27,16 +27,23 @@ with open("events.txt",encoding="utf-8") as f:
 
         line=line.strip()
 
-        if not line:
+        if not line or line.startswith("#"):
             continue
 
         time_part=line.split(",")[0]
+
         t=parse(time_part)
+
         print("当前时间:",now)
         print("事件:",line)
         print("解析时间:",t)
-        if isinstance(t,datetime):
 
-            if now>=t and now<=t+timedelta(minutes=CHECK_WINDOW):
+       if isinstance(t,datetime):
+
+            diff=abs((now-t).total_seconds())
+
+            if diff<=CHECK_WINDOW*60:
+
+                print("触发提醒:",line)
 
                 send("提醒："+line)
