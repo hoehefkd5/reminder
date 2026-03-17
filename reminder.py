@@ -30,7 +30,8 @@ with open("events.txt",encoding="utf-8") as f:
         if not line:
             continue
 
-        t=parse(line)
+        time_part=line.split(",")[0]
+        t=parse(time_part)
         print("当前时间:",now)
         print("事件:",line)
         print("解析时间:",t)
