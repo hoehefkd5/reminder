@@ -17,7 +17,7 @@ def send(msg):
 
     urllib.request.urlopen(req)
 
-send("GitHub提醒系统测试")
+#send("GitHub提醒系统测试")
 
 now=datetime.now()
 
