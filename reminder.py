@@ -19,31 +19,33 @@ def send(msg):
 
 #send("GitHub提醒系统测试")
 
-now=datetime.now()
+now = datetime.now()
 
-with open("events.txt",encoding="utf-8") as f:
+with open("events.txt", encoding="utf-8") as f:
 
     for line in f:
 
-        line=line.strip()
+        line = line.strip()
 
         if not line or line.startswith("#"):
             continue
 
-        time_part=line.split(",")[0]
+        time_part = line.split(",")[0]
 
-        t=parse(time_part)
+        t = parse(time_part)
 
-        print("当前时间:",now)
-        print("事件:",line)
-        print("解析时间:",t)
+        print("当前时间:", now)
+        print("事件:", line)
+        print("解析时间:", t)
 
-       if isinstance(t,datetime):
+        if isinstance(t, datetime):
 
-            diff=abs((now-t).total_seconds())
+            diff = abs((now - t).total_seconds())
 
-            if diff<=CHECK_WINDOW*60:
+            print("时间差(秒):", diff)
 
-                print("触发提醒:",line)
+            if diff <= CHECK_WINDOW * 60:
 
-                send("提醒："+line)
+                print("触发提醒:", line)
+
+                send("提醒：" + line)
