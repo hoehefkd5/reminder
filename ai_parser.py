@@ -34,6 +34,8 @@ def parse(text):
 
     text=text.strip()
 
+    text = text.replace("：", ":")
+    
     now=datetime.now()
 
     text,advance=parse_advance(text)
