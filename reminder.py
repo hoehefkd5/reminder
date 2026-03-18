@@ -1,79 +1,114 @@
 import os
 import json
 import urllib.request
-from datetime import datetime,timedelta
-from ai_parser import parse
+from datetime import datetime, timedelta
+from ai_parser import parse, parse_advance
 
-NTFY_SERVER=os.environ.get("NTFY_SERVER")
-NTFY_TOPIC=os.environ.get("NTFY_TOPIC")
+NTFY_SERVER = os.environ.get("NTFY_SERVER")
+NTFY_TOPIC = os.environ.get("NTFY_TOPIC")
 
-CHECK_WINDOW=180
+CHECK_WINDOW = 180  # 分钟
 
-STATE_FILE="state.json"
+STATE_FILE = "state.json"
+
 
 def load():
     if not os.path.exists(STATE_FILE):
         return {}
     return json.load(open(STATE_FILE))
 
+
 def save(data):
-    json.dump(data,open(STATE_FILE,"w"))
+    json.dump(data, open(STATE_FILE, "w"))
 
-def send(msg):
 
-    url=f"{NTFY_SERVER}/{NTFY_TOPIC}"
+def send(title, msg):
+    url = f"{NTFY_SERVER}/{NTFY_TOPIC}"
 
-    req=urllib.request.Request(
+    req = urllib.request.Request(
         url,
         data=msg.encode("utf-8"),
         method="POST"
     )
 
-    req.add_header("Title","提醒")
+    req.add_header("Title", title)
 
     urllib.request.urlopen(req)
 
-state=load()
 
-now=datetime.now()
+state = load()
+now = datetime.now()
 
-with open("events.txt",encoding="utf-8") as f:
+print("当前时间:", now)
+
+with open("events.txt", encoding="utf-8") as f:
 
     for line in f:
 
-        line=line.strip()
+        line = line.strip()
 
         if not line or line.startswith("#"):
             continue
 
-        parts=line.split(",",1)
+        # 解析格式
+        parts = line.split(",", 1)
 
-        if len(parts)==2:
-            time_part,event=parts
+        if len(parts) == 2:
+            time_part, event = parts
         else:
-            sp=line.split(" ",1)
-            time_part=sp[0]
-            event=sp[1] if len(sp)>1 else ""
+            sp = line.split(" ", 1)
+            time_part = sp[0]
+            event = sp[1] if len(sp) > 1 else ""
 
-        t=parse(time_part)
+        # 🔥 拆提前时间
+        base_time, advance = parse_advance(time_part)
 
-        print("事件:",line)
-        print("解析:",t)
+        t = parse(base_time)
 
-        if not isinstance(t,datetime):
+        print("事件:", line)
+        print("时间:", t)
+        print("提前(分钟):", advance)
+
+        if not isinstance(t, datetime):
             continue
 
-        diff=abs((now-t).total_seconds())
+        key_base = line
+        today = now.strftime("%Y-%m-%d")
 
-        key=line
+        # =========================
+        # 🟡 提前提醒
+        # =========================
+        if advance > 0:
 
-        if diff<=CHECK_WINDOW*60:
+            advance_time = t - timedelta(minutes=advance)
 
-            if state.get(key)==now.strftime("%Y-%m-%d"):
-                continue
+            diff = (now - advance_time).total_seconds()
 
-            send(f"提醒：{event}")
+            print("提前diff:", diff)
 
-            state[key]=now.strftime("%Y-%m-%d")
+            if 0 <= diff <= CHECK_WINDOW * 60:
+
+                key = key_base + "_advance"
+
+                if state.get(key) != today:
+                    send("提前提醒", event)
+                    state[key] = today
+
+        # =========================
+        # 🔴 准时提醒
+        # =========================
+        diff2 = (now - t).total_seconds()
+
+        print("准时diff:", diff2)
+
+        if 0 <= diff2 <= CHECK_WINDOW * 60:
+
+            key = key_base + "_ontime"
+
+            if state.get(key) != today:
+                send("准时提醒", event)
+                state[key] = today
 
 save(state)
+
+print("执行完成")
