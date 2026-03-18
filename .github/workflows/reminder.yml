@@ -10,34 +10,34 @@ permissions:
 
 jobs:
 
-  reminder:
+  run:
 
     runs-on: ubuntu-latest
 
     steps:
 
-      - name: checkout
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-      - name: setup python
-        uses: actions/setup-python@v5
+      - uses: actions/setup-python@v5
         with:
           python-version: '3.10'
-         
 
-      - name: run reminder
+      - name: inbox
+        run: python inbox.py
+
+      - name: reminder
         env:
           NTFY_SERVER: ${{ secrets.NTFY_SERVER }}
           NTFY_TOPIC: ${{ secrets.NTFY_TOPIC }}
         run: python reminder.py
 
-      - name: generate stats
+      - name: stats
         run: python stats.py
 
-      - name: save state
+      - name: save
         run: |
           git config --global user.name "bot"
           git config --global user.email "bot@github.com"
           git add .
-          git commit -m "update data" || echo "no changes"
+          git commit -m "update" || echo "no change"
           git push
