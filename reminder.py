@@ -1,5 +1,5 @@
-import json
 import os
+import json
 import urllib.request
 from datetime import datetime,timedelta
 from ai_parser import parse
@@ -9,43 +9,71 @@ NTFY_TOPIC=os.environ.get("NTFY_TOPIC")
 
 CHECK_WINDOW=180
 
+STATE_FILE="state.json"
+
+def load():
+    if not os.path.exists(STATE_FILE):
+        return {}
+    return json.load(open(STATE_FILE))
+
+def save(data):
+    json.dump(data,open(STATE_FILE,"w"))
+
 def send(msg):
 
     url=f"{NTFY_SERVER}/{NTFY_TOPIC}"
 
-    req=urllib.request.Request(url,data=msg.encode())
+    req=urllib.request.Request(
+        url,
+        data=msg.encode("utf-8"),
+        method="POST"
+    )
+
+    req.add_header("Title","提醒")
 
     urllib.request.urlopen(req)
 
-#send("GitHub提醒系统测试")
+state=load()
 
-now = datetime.now()
+now=datetime.now()
 
-with open("events.txt", encoding="utf-8") as f:
+with open("events.txt",encoding="utf-8") as f:
 
     for line in f:
 
-        line = line.strip()
+        line=line.strip()
 
         if not line or line.startswith("#"):
             continue
 
-        time_part = line.split(",")[0]
+        parts=line.split(",",1)
 
-        t = parse(time_part)
+        if len(parts)==2:
+            time_part,event=parts
+        else:
+            sp=line.split(" ",1)
+            time_part=sp[0]
+            event=sp[1] if len(sp)>1 else ""
 
-        print("当前时间:", now)
-        print("事件:", line)
-        print("解析时间:", t)
+        t=parse(time_part)
 
-        if isinstance(t, datetime):
+        print("事件:",line)
+        print("解析:",t)
 
-            diff = abs((now - t).total_seconds())
+        if not isinstance(t,datetime):
+            continue
 
-            print("时间差(秒):", diff)
+        diff=abs((now-t).total_seconds())
 
-            if diff <= CHECK_WINDOW * 60:
+        key=line
 
-                print("触发提醒:", line)
+        if diff<=CHECK_WINDOW*60:
 
-                send("提醒：" + line)
+            if state.get(key)==now.strftime("%Y-%m-%d"):
+                continue
+
+            send(f"提醒：{event}")
+
+            state[key]=now.strftime("%Y-%m-%d")
+
+save(state)
