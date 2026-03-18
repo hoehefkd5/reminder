@@ -1,11 +1,6 @@
-import json
+done=0
 
-done=open("done.txt").read().splitlines()
+if os.path.exists("done.txt"):
+    done=len(open("done.txt").read().splitlines())
 
-stats={
-"done":len(done)
-}
-
-with open("stats.json","w") as f:
-
-    json.dump(stats,f)
+print("已完成任务:",done)
