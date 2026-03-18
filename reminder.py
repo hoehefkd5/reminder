@@ -86,7 +86,7 @@ with open("events.txt", encoding="utf-8") as f:
 
             print("提前diff:", diff)
 
-            if 0 <= diff <= CHECK_WINDOW * 60:
+            if -CHECK_WINDOW * 60 <= diff2 <= CHECK_WINDOW * 60:
 
                 key = key_base + "_advance"
 
