@@ -7,8 +7,6 @@ from ai_parser import parse, parse_advance
 NTFY_SERVER = os.environ.get("NTFY_SERVER")
 NTFY_TOPIC = os.environ.get("NTFY_TOPIC")
 
-send("强制测试")
-
 CHECK_WINDOW = 180  # 分钟
 
 STATE_FILE = "state.json"
@@ -37,6 +35,7 @@ def send(title, msg):
 
     urllib.request.urlopen(req)
 
+send("强制测试")
 
 state = load()
 now = datetime.now()
