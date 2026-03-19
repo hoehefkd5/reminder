@@ -27,7 +27,6 @@ jobs:
 
       - name: reminder
         env:
-          env:
           TZ: Asia/Shanghai
           NTFY_SERVER: ${{ secrets.NTFY_SERVER }}
           NTFY_TOPIC: ${{ secrets.NTFY_TOPIC }}
