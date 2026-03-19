@@ -23,6 +23,9 @@ def save(data):
 
 
 def send(title, msg):
+
+    print("准备发送:", title, msg)
+
     url = f"{NTFY_SERVER}/{NTFY_TOPIC}"
 
     req = urllib.request.Request(
@@ -33,9 +36,11 @@ def send(title, msg):
 
     req.add_header("Title", title)
 
-    urllib.request.urlopen(req)
+    res = urllib.request.urlopen(req)
 
-send("强制测试")
+    print("发送成功:", res.status)
+
+send("测试","强制测试")
 
 state = load()
 now = datetime.now()
