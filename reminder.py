@@ -1,6 +1,7 @@
 import os
 import json
 import urllib.request
+import base64
 from datetime import datetime, timedelta
 from ai_parser import parse, parse_advance
 
@@ -23,7 +24,6 @@ def save(data):
 
 
 def send(title, msg):
-
     print("准备发送:", title, msg)
 
     url = f"{NTFY_SERVER}/{NTFY_TOPIC}"
@@ -34,13 +34,16 @@ def send(title, msg):
         method="POST"
     )
 
-    req.add_header("Title", title)
+    # ✅ 关键修复：标题用 Base64 编码（支持中文）
+    title_b64 = base64.b64encode(title.encode("utf-8")).decode("ascii")
+    req.add_header("Title", f"=?UTF-8?B?{title_b64}?=")
 
     res = urllib.request.urlopen(req)
-
     print("发送成功:", res.status)
 
-send("测试","强制测试")
+
+# 🔥 测试发送（可保留）
+send("测试", "强制测试")
 
 state = load()
 now = datetime.now()
@@ -50,7 +53,6 @@ print("当前时间:", now)
 with open("events.txt", encoding="utf-8") as f:
 
     for line in f:
-
         line = line.strip()
 
         if not line or line.startswith("#"):
@@ -68,7 +70,6 @@ with open("events.txt", encoding="utf-8") as f:
 
         # 🔥 拆提前时间
         base_time, advance = parse_advance(time_part)
-
         t = parse(base_time)
 
         print("事件:", line)
@@ -85,15 +86,13 @@ with open("events.txt", encoding="utf-8") as f:
         # 🟡 提前提醒
         # =========================
         if advance > 0:
-
             advance_time = t - timedelta(minutes=advance)
-
             diff = (now - advance_time).total_seconds()
 
             print("提前diff:", diff)
 
-            if -CHECK_WINDOW * 60 <= diff2 <= CHECK_WINDOW * 60:
-
+            # ✅ 修复：这里用 diff，不是 diff2
+            if -CHECK_WINDOW * 60 <= diff <= CHECK_WINDOW * 60:
                 key = key_base + "_advance"
 
                 if state.get(key) != today:
@@ -108,7 +107,6 @@ with open("events.txt", encoding="utf-8") as f:
         print("准时diff:", diff2)
 
         if 0 <= diff2 <= CHECK_WINDOW * 60:
-
             key = key_base + "_ontime"
 
             if state.get(key) != today:
