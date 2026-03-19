@@ -43,7 +43,6 @@ def send(title, msg):
 
 
 # 🔥 测试发送（可保留）
-send("测试", "强制测试")
 
 state = load()
 now = datetime.now()
