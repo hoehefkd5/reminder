@@ -38,6 +38,7 @@ def send(title, msg):
 
     urllib.request.urlopen(req)
 
+send("测试", "这是一条测试消息")
 
 state = load()
 now = datetime.now()
