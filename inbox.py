@@ -2,10 +2,9 @@ import os
 import json
 import requests
 from datetime import datetime, timedelta
-import re
+from ai_parser import parse  # 使用你现有的解析器
 
 NTFY_TOPIC = os.environ.get("NTFY_TOPIC")
-
 INBOX_STATE = "inbox_state.json"
 EVENTS = "events.txt"
 
@@ -20,7 +19,6 @@ def load_state():
 
 
 def save_state(data):
-    # 保留最近100条消息
     try:
         json.dump(data[-100:], open(INBOX_STATE, "w", encoding="utf-8"))
     except Exception as e:
@@ -40,28 +38,15 @@ def parse_text(text):
     if text.startswith("add "):
         text = text[4:].strip()
 
-    # 明天 HH:MM 事件
-    if text.startswith("明天"):
-        rest = text.replace("明天", "").strip()
-        parts = rest.split(" ", 1)
-        time_part = parts[0]
-        event = parts[1] if len(parts) > 1 else "提醒"
-        t = datetime.now() + timedelta(days=1)
-        return {"action": "add", "content": f"{t.strftime('%Y-%m-%d')} {time_part} {event}"}
-
-    # HH:MM 格式
-    m = re.match(r"(\d{1,2}:\d{2})(.*)", text)
-    if m:
-        time_part = m.group(1)
-        event = m.group(2).strip() or "提醒"
-        today = datetime.now()
-        try:
-            t = datetime.strptime(today.strftime("%Y-%m-%d") + " " + time_part, "%Y-%m-%d %H:%M")
-        except:
-            return None
-        if t < today:
+    # 使用 ai_parser 解析时间
+    t = parse(text)
+    if t:
+        # 如果时间已经过去 → 默认明天
+        if t < datetime.now():
             t += timedelta(days=1)
-        return {"action": "add", "content": f"{t.strftime('%Y-%m-%d %H:%M')} {event}"}
+        # 格式化为标准事件文本
+        event_text = f"{t.year}-{t.month}-{t.day} {t.hour:02d}:{t.minute:02d} {text}"
+        return {"action": "add", "content": event_text}
 
     return None
 
