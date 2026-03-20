@@ -2,9 +2,10 @@ import os
 import json
 import requests
 from datetime import datetime, timedelta
-from ai_parser import parse  # 使用你现有的解析器
+from ai_parser import parse
 
 NTFY_TOPIC = os.environ.get("NTFY_TOPIC")
+
 INBOX_STATE = "inbox_state.json"
 EVENTS = "events.txt"
 
@@ -25,34 +26,53 @@ def save_state(data):
         print("保存 inbox_state 失败:", e)
 
 
+def extract_time_and_event(text):
+    """
+    把 '20:46 叮我一下' 拆成：
+    时间部分：20:46
+    内容部分：叮我一下
+    """
+    parts = text.strip().split(" ", 1)
+
+    if len(parts) == 1:
+        return parts[0], ""
+
+    return parts[0], parts[1]
+
+
 def parse_text(text):
     text = text.strip()
     if not text:
         return None
 
-    # 删除任务
+    # 删除
     if text.startswith("del "):
         return {"action": "del", "content": text[4:].strip()}
 
-    # 添加任务前缀
+    # add 前缀
     if text.startswith("add "):
         text = text[4:].strip()
 
-    # 使用 ai_parser 解析时间
-    t = parse(text)
-    if t:
-        # 如果时间已经过去 → 默认明天
-        if t < datetime.now():
-            t += timedelta(days=1)
-        # 格式化为标准事件文本
-        event_text = f"{t.year}-{t.month}-{t.day} {t.hour:02d}:{t.minute:02d} {text}"
-        return {"action": "add", "content": event_text}
+    time_part, event = extract_time_and_event(text)
 
-    return None
+    t = parse(time_part)
+
+    if not t:
+        print("解析失败:", text)
+        return None
+
+    # 已过时间 → 自动+1天
+    if t < datetime.now():
+        t += timedelta(days=1)
+
+    event_text = f"{t.year}-{t.month}-{t.day} {t.hour:02d}:{t.minute:02d} {event}"
+
+    return {"action": "add", "content": event_text}
 
 
 def main():
     url = f"https://ntfy.sh/{NTFY_TOPIC}/json"
+
     try:
         resp = requests.get(url, timeout=10)
         data = []
@@ -81,29 +101,31 @@ def main():
     for msg in data:
         msg_id = msg.get("id")
         text = msg.get("message", "")
+
         if msg_id in seen or not text:
             continue
+
         parsed = parse_text(text)
+
         if parsed:
             if parsed["action"] == "add":
                 if parsed["content"] not in events:
                     events.append(parsed["content"])
                     added.append(parsed["content"])
+
             elif parsed["action"] == "del":
                 before = len(events)
                 events = [e for e in events if parsed["content"] not in e]
                 removed.append(f"{parsed['content']} ({before-len(events)} removed)")
+
         new_seen.append(msg_id)
 
     events = list(dict.fromkeys(events))
 
     tmp = EVENTS + ".tmp"
-    try:
-        with open(tmp, "w", encoding="utf-8") as f:
-            f.write("\n".join(events))
-        os.replace(tmp, EVENTS)
-    except Exception as e:
-        print("写入 events.txt 失败:", e)
+    with open(tmp, "w", encoding="utf-8") as f:
+        f.write("\n".join(events))
+    os.replace(tmp, EVENTS)
 
     if added:
         print("新增任务:", added)
