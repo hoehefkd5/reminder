@@ -11,7 +11,7 @@ STATE_FILE = "state.json"
 EVENTS = "events.txt"
 
 REPEAT_INTERVAL = 5  # 分钟
-EXPIRE_MINUTES = 60  # 过期删除
+EXPIRE_HOURS = 24    # 24小时后自动删除
 
 
 def load():
@@ -58,14 +58,14 @@ for line in events:
 
     diff = (now - t).total_seconds() / 60
 
-    # 🧹 过期删除
-    if diff > EXPIRE_MINUTES:
+    # 24小时过期自动删除
+    if diff > EXPIRE_HOURS * 60:
         continue
 
     key = line
     last = state.get(key)
 
-    # 🔔 到点后重复提醒
+    # 到点重复提醒
     if diff >= 0:
         if not last or (now - datetime.fromisoformat(last)).total_seconds() >= REPEAT_INTERVAL * 60:
             send("提醒", event)
