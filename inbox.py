@@ -20,7 +20,7 @@ def load_state():
 
 
 def save_state(data):
-    # 仅保留最近100条消息
+    # 保留最近100条消息
     try:
         json.dump(data[-100:], open(INBOX_STATE, "w", encoding="utf-8"))
     except Exception as e:
@@ -29,7 +29,6 @@ def save_state(data):
 
 def parse_text(text):
     text = text.strip()
-
     if not text:
         return None
 
@@ -47,7 +46,6 @@ def parse_text(text):
         parts = rest.split(" ", 1)
         time_part = parts[0]
         event = parts[1] if len(parts) > 1 else "提醒"
-
         t = datetime.now() + timedelta(days=1)
         return {"action": "add", "content": f"{t.strftime('%Y-%m-%d')} {time_part} {event}"}
 
@@ -56,24 +54,19 @@ def parse_text(text):
     if m:
         time_part = m.group(1)
         event = m.group(2).strip() or "提醒"
-
         today = datetime.now()
         try:
             t = datetime.strptime(today.strftime("%Y-%m-%d") + " " + time_part, "%Y-%m-%d %H:%M")
         except:
             return None
-
-        # 如果时间已过 → 自动改为明天
         if t < today:
             t += timedelta(days=1)
-
         return {"action": "add", "content": f"{t.strftime('%Y-%m-%d %H:%M')} {event}"}
 
     return None
 
 
 def main():
-    # 🔹 获取 ntfy 消息
     url = f"https://ntfy.sh/{NTFY_TOPIC}/json"
     try:
         resp = requests.get(url, timeout=10)
@@ -91,7 +84,6 @@ def main():
     seen = load_state()
     new_seen = seen[:]
 
-    # 读取 events.txt
     events = []
     if os.path.exists(EVENTS):
         try:
@@ -104,12 +96,9 @@ def main():
     for msg in data:
         msg_id = msg.get("id")
         text = msg.get("message", "")
-
         if msg_id in seen or not text:
             continue
-
         parsed = parse_text(text)
-
         if parsed:
             if parsed["action"] == "add":
                 if parsed["content"] not in events:
@@ -119,13 +108,10 @@ def main():
                 before = len(events)
                 events = [e for e in events if parsed["content"] not in e]
                 removed.append(f"{parsed['content']} ({before-len(events)} removed)")
-
         new_seen.append(msg_id)
 
-    # 去重
     events = list(dict.fromkeys(events))
 
-    # 安全写入 events.txt
     tmp = EVENTS + ".tmp"
     try:
         with open(tmp, "w", encoding="utf-8") as f:
