@@ -17,17 +17,19 @@ def load_state():
 
 
 def save_state(data):
-    json.dump(data[-100:], open(INBOX_STATE, "w"))  # 只保留最近100条
+    json.dump(data[-100:], open(INBOX_STATE, "w"))  # 保留最近100条消息
 
 
 def parse_text(text):
     text = text.strip()
 
-    if text.startswith("add "):
-        text = text[4:]
-
+    # 支持删除
     if text.startswith("del "):
         return {"action": "del", "content": text[4:].strip()}
+
+    # 支持 add 前缀
+    if text.startswith("add "):
+        text = text[4:]
 
     # 明天
     if text.startswith("明天"):
@@ -58,7 +60,7 @@ def parse_text(text):
 
 
 def main():
-    url = f"https://ntfy.sh/{NTFY_TOPIC}/json?poll=1"
+    url = f"https://ntfy.sh/{NTFY_TOPIC}/json"  # 最新修改，不使用 poll=1
     resp = requests.get(url)
 
     data = []
@@ -102,11 +104,11 @@ def main():
     # 去重
     events = list(dict.fromkeys(events))
 
-    if added or removed:
-        tmp = EVENTS + ".tmp"
-        with open(tmp, "w", encoding="utf-8") as f:
-            f.write("\n".join(events))
-        os.replace(tmp, EVENTS)
+    # 安全写入
+    tmp = EVENTS + ".tmp"
+    with open(tmp, "w", encoding="utf-8") as f:
+        f.write("\n".join(events))
+    os.replace(tmp, EVENTS)
 
     if added:
         print("新增:", added)
