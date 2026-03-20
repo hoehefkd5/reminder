@@ -23,7 +23,7 @@ def save_state(data):
 def parse_text(text):
     text = text.strip()
 
-    # 支持删除
+    # 支持删除任务
     if text.startswith("del "):
         return {"action": "del", "content": text[4:].strip()}
 
@@ -41,7 +41,7 @@ def parse_text(text):
         t = datetime.now() + timedelta(days=1)
         return {"action": "add", "content": f"{t.strftime('%Y-%m-%d')} {time_part} {event}"}
 
-    # HH:MM
+    # HH:MM 格式
     m = re.match(r"(\d{1,2}:\d{2})(.*)", text)
     if m:
         time_part = m.group(1)
@@ -50,7 +50,7 @@ def parse_text(text):
         today = datetime.now()
         t = datetime.strptime(today.strftime("%Y-%m-%d") + " " + time_part, "%Y-%m-%d %H:%M")
 
-        # 如果时间已过 → 自动变明天
+        # 如果时间已过 → 自动改为明天
         if t < today:
             t += timedelta(days=1)
 
@@ -60,16 +60,20 @@ def parse_text(text):
 
 
 def main():
-    url = f"https://ntfy.sh/{NTFY_TOPIC}/json"  # 最新修改，不使用 poll=1
-    resp = requests.get(url)
-
-    data = []
-    for line in resp.text.strip().split("\n"):
-        if line.strip():
-            try:
-                data.append(json.loads(line))
-            except:
-                continue
+    # 🔹 获取 ntfy 消息，增加超时和异常捕获，防止 GitHub Actions 卡住
+    url = f"https://ntfy.sh/{NTFY_TOPIC}/json"
+    try:
+        resp = requests.get(url, timeout=10)
+        data = []
+        for line in resp.text.strip().split("\n"):
+            if line.strip():
+                try:
+                    data.append(json.loads(line))
+                except:
+                    continue
+    except Exception as e:
+        print("获取 ntfy 消息失败:", e)
+        data = []
 
     seen = load_state()
     new_seen = seen[:]
@@ -104,16 +108,16 @@ def main():
     # 去重
     events = list(dict.fromkeys(events))
 
-    # 安全写入
+    # 安全写入 events.txt
     tmp = EVENTS + ".tmp"
     with open(tmp, "w", encoding="utf-8") as f:
         f.write("\n".join(events))
     os.replace(tmp, EVENTS)
 
     if added:
-        print("新增:", added)
+        print("新增任务:", added)
     if removed:
-        print("删除:", removed)
+        print("删除任务:", removed)
 
     save_state(new_seen)
 
