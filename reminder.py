@@ -25,6 +25,10 @@ def save(data):
 
 
 def send(title, msg):
+    if not NTFY_SERVER or not NTFY_TOPIC:
+        print("NTFY_SERVER 或 NTFY_TOPIC 未设置")
+        return
+
     url = f"{NTFY_SERVER}/{NTFY_TOPIC}"
 
     req = urllib.request.Request(
@@ -33,12 +37,15 @@ def send(title, msg):
         method="POST"
     )
 
-    title_b64 = base64.b64encode(title.encode()).decode()
+    title_b64 = base64.b64encode(title.encode("utf-8")).decode()
     req.add_header("Title", f"=?UTF-8?B?{title_b64}?=")
+    req.add_header("Content-Type", "text/plain; charset=utf-8")
 
-    urllib.request.urlopen(req)
-
-send("测试", "这是一条测试消息")
+    try:
+        urllib.request.urlopen(req, timeout=10)
+        print("发送成功:", title, msg)
+    except Exception as e:
+        print("发送失败:", e)
 
 state = load()
 now = datetime.now()
