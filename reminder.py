@@ -3,10 +3,9 @@ import time
 import json
 import base64
 import urllib.request
-from datetime import datetime, timedelta
-from ai_parser import parse  # 使用 ai_parser
+from datetime import datetime
+from ai_parser import parse
 
-# 设置时区
 os.environ['TZ'] = 'Asia/Shanghai'
 time.tzset()
 
@@ -16,8 +15,8 @@ NTFY_TOPIC = os.environ.get("NTFY_TOPIC")
 STATE_FILE = "state.json"
 EVENTS = "events.txt"
 
-REPEAT_INTERVAL = 5  # 分钟
-EXPIRE_HOURS = 24    # 小时
+REPEAT_INTERVAL = 5
+EXPIRE_HOURS = 24
 
 
 def load():
@@ -30,17 +29,10 @@ def load():
 
 
 def save(data):
-    try:
-        json.dump(data, open(STATE_FILE, "w", encoding="utf-8"))
-    except Exception as e:
-        print("保存 state.json 失败:", e)
+    json.dump(data, open(STATE_FILE, "w", encoding="utf-8"))
 
 
 def send(title, msg):
-    if not NTFY_SERVER or not NTFY_TOPIC:
-        print("NTFY_SERVER 或 NTFY_TOPIC 未设置")
-        return
-
     url = f"{NTFY_SERVER}/{NTFY_TOPIC}"
 
     req = urllib.request.Request(
@@ -55,9 +47,25 @@ def send(title, msg):
 
     try:
         urllib.request.urlopen(req, timeout=10)
-        print("发送成功:", title, msg)
+        print("发送成功:", msg)
     except Exception as e:
         print("发送失败:", e)
+
+
+def split_event(line):
+    """
+    标准格式：
+    2026-3-20 20:46 叮我一下
+    """
+    parts = line.split(" ", 2)
+
+    if len(parts) < 2:
+        return None, None
+
+    time_part = parts[0] + " " + parts[1]
+    event = parts[2] if len(parts) > 2 else ""
+
+    return time_part, event
 
 
 def main():
@@ -66,44 +74,45 @@ def main():
 
     events = []
     if os.path.exists(EVENTS):
-        try:
-            events = open(EVENTS, encoding="utf-8").read().splitlines()
-        except:
-            events = []
+        events = open(EVENTS, encoding="utf-8").read().splitlines()
 
     new_events = []
 
     for line in events:
-        # 用 ai_parser 再解析一次，支持灵活写法
-        parts = line.split(" ", 2)
-        text = parts[2] if len(parts) > 2 else parts[0] + " " + parts[1]
-        t = parse(text)
+
+        time_part, event = split_event(line)
+
+        if not time_part:
+            continue
+
+        t = parse(time_part)
+
         if not t:
+            print("解析失败:", line)
             continue
 
         diff = (now - t).total_seconds() / 60
 
-        # 保留未来事件或24小时内事件
+        # ✅ 保留未来事件 + 24小时内
         if diff <= EXPIRE_HOURS * 60:
             new_events.append(line)
 
-        # 到点提醒
+        # ✅ 到点发送
         if diff >= 0:
             key = line
             last = state.get(key)
+
             if not last or (now - datetime.fromisoformat(last)).total_seconds() >= REPEAT_INTERVAL * 60:
-                send("提醒", text)
+                send("提醒", event)
                 state[key] = now.isoformat()
 
     tmp = EVENTS + ".tmp"
-    try:
-        with open(tmp, "w", encoding="utf-8") as f:
-            f.write("\n".join(new_events))
-        os.replace(tmp, EVENTS)
-    except Exception as e:
-        print("写入 events.txt 失败:", e)
+    with open(tmp, "w", encoding="utf-8") as f:
+        f.write("\n".join(new_events))
+    os.replace(tmp, EVENTS)
 
     save(state)
+
     print("完成")
 
 
