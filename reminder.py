@@ -1,6 +1,11 @@
-import os, time, json, base64, urllib.request
+import os
+import time
+import json
+import base64
+import urllib.request
 from datetime import datetime, timedelta
 
+# 设置时区
 os.environ['TZ'] = 'Asia/Shanghai'
 time.tzset()
 
@@ -11,17 +16,23 @@ STATE_FILE = "state.json"
 EVENTS = "events.txt"
 
 REPEAT_INTERVAL = 5  # 分钟
-EXPIRE_HOURS = 24    # 24小时后自动删除
+EXPIRE_HOURS = 24    # 小时
 
 
 def load():
     if not os.path.exists(STATE_FILE):
         return {}
-    return json.load(open(STATE_FILE))
+    try:
+        return json.load(open(STATE_FILE, "r", encoding="utf-8"))
+    except:
+        return {}
 
 
 def save(data):
-    json.dump(data, open(STATE_FILE, "w"))
+    try:
+        json.dump(data, open(STATE_FILE, "w", encoding="utf-8"))
+    except Exception as e:
+        print("保存 state.json 失败:", e)
 
 
 def send(title, msg):
@@ -47,46 +58,58 @@ def send(title, msg):
     except Exception as e:
         print("发送失败:", e)
 
-state = load()
-now = datetime.now()
 
-events = []
-if os.path.exists(EVENTS):
-    events = open(EVENTS, encoding="utf-8").read().splitlines()
+def main():
+    state = load()
+    now = datetime.now()
 
-new_events = []
+    # 读取 events.txt
+    events = []
+    if os.path.exists(EVENTS):
+        try:
+            events = open(EVENTS, encoding="utf-8").read().splitlines()
+        except:
+            events = []
 
-for line in events:
+    new_events = []
+
+    for line in events:
+        try:
+            parts = line.split(" ", 2)
+            t = datetime.strptime(parts[0] + " " + parts[1], "%Y-%m-%d %H:%M")
+            event = parts[2] if len(parts) > 2 else ""
+        except:
+            continue
+
+        diff = (now - t).total_seconds() / 60
+
+        # 过期删除
+        if diff > EXPIRE_HOURS * 60:
+            continue
+
+        key = line
+        last = state.get(key)
+
+        # 到点提醒
+        if diff >= 0:
+            if not last or (now - datetime.fromisoformat(last)).total_seconds() >= REPEAT_INTERVAL * 60:
+                send("提醒", event)
+                state[key] = now.isoformat()
+
+        new_events.append(line)
+
+    # 安全写入 events.txt
+    tmp = EVENTS + ".tmp"
     try:
-        parts = line.split(" ", 2)
-        t = datetime.strptime(parts[0] + " " + parts[1], "%Y-%m-%d %H:%M")
-        event = parts[2] if len(parts) > 2 else ""
-    except:
-        continue
+        with open(tmp, "w", encoding="utf-8") as f:
+            f.write("\n".join(new_events))
+        os.replace(tmp, EVENTS)
+    except Exception as e:
+        print("写入 events.txt 失败:", e)
 
-    diff = (now - t).total_seconds() / 60
+    save(state)
+    print("完成")
 
-    # 24小时过期自动删除
-    if diff > EXPIRE_HOURS * 60:
-        continue
 
-    key = line
-    last = state.get(key)
-
-    # 到点重复提醒
-    if diff >= 0:
-        if not last or (now - datetime.fromisoformat(last)).total_seconds() >= REPEAT_INTERVAL * 60:
-            send("提醒", event)
-            state[key] = now.isoformat()
-
-    new_events.append(line)
-
-# 安全写入
-tmp = EVENTS + ".tmp"
-with open(tmp, "w", encoding="utf-8") as f:
-    f.write("\n".join(new_events))
-os.replace(tmp, EVENTS)
-
-save(state)
-
-print("完成")
+if __name__ == "__main__":
+    main()
