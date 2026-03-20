@@ -63,7 +63,6 @@ def main():
     state = load()
     now = datetime.now()
 
-    # 读取 events.txt
     events = []
     if os.path.exists(EVENTS):
         try:
@@ -83,22 +82,18 @@ def main():
 
         diff = (now - t).total_seconds() / 60
 
-        # 过期删除
-        if diff > EXPIRE_HOURS * 60:
-            continue
-
-        key = line
-        last = state.get(key)
+        # 保留未来事件或未超过24小时的事件
+        if diff <= EXPIRE_HOURS * 60:
+            new_events.append(line)
 
         # 到点提醒
         if diff >= 0:
+            key = line
+            last = state.get(key)
             if not last or (now - datetime.fromisoformat(last)).total_seconds() >= REPEAT_INTERVAL * 60:
                 send("提醒", event)
                 state[key] = now.isoformat()
 
-        new_events.append(line)
-
-    # 安全写入 events.txt
     tmp = EVENTS + ".tmp"
     try:
         with open(tmp, "w", encoding="utf-8") as f:
