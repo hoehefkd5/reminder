@@ -9,14 +9,14 @@
 
 <h1>📅 我的任务</h1>
 
-<input id="input" placeholder="输入任务，如：明天5:00 起床">
+<input id="input" placeholder="明天5:00 起床">
 <button onclick="add()">添加</button>
 
 <ul id="tasks"></ul>
 
 <script>
-function load() {
-  fetch("events.txt")
+function load(){
+  fetch("events.txt?t=" + Date.now())
   .then(r=>r.text())
   .then(t=>{
     let ul=document.getElementById("tasks")
@@ -37,26 +37,18 @@ function load() {
   })
 }
 
-function add() {
-  let val=document.getElementById("input").value
-
-  fetch("https://ntfy.sh/YOUR_TOPIC", {
-    method: "POST",
-    body: "add " + val
-  })
-
+function add(){
+  let v=document.getElementById("input").value
+  fetch("https://ntfy.sh/YOUR_TOPIC",{method:"POST",body:"add "+v})
   alert("已发送")
 }
 
-function del(task) {
-  fetch("https://ntfy.sh/YOUR_TOPIC", {
-    method: "POST",
-    body: "del " + task
-  })
-
+function del(t){
+  fetch("https://ntfy.sh/YOUR_TOPIC",{method:"POST",body:"del "+t})
   alert("删除指令已发送")
 }
 
+setInterval(load,5000)
 load()
 </script>
 
