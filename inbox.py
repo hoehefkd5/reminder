@@ -13,25 +13,35 @@ EVENTS = "events.txt"
 def load_state():
     if not os.path.exists(INBOX_STATE):
         return []
-    return json.load(open(INBOX_STATE))
+    try:
+        return json.load(open(INBOX_STATE, "r", encoding="utf-8"))
+    except:
+        return []
 
 
 def save_state(data):
-    json.dump(data[-100:], open(INBOX_STATE, "w"))  # 保留最近100条消息
+    # 仅保留最近100条消息
+    try:
+        json.dump(data[-100:], open(INBOX_STATE, "w", encoding="utf-8"))
+    except Exception as e:
+        print("保存 inbox_state 失败:", e)
 
 
 def parse_text(text):
     text = text.strip()
 
-    # 支持删除任务
+    if not text:
+        return None
+
+    # 删除任务
     if text.startswith("del "):
         return {"action": "del", "content": text[4:].strip()}
 
-    # 支持 add 前缀
+    # 添加任务前缀
     if text.startswith("add "):
-        text = text[4:]
+        text = text[4:].strip()
 
-    # 明天
+    # 明天 HH:MM 事件
     if text.startswith("明天"):
         rest = text.replace("明天", "").strip()
         parts = rest.split(" ", 1)
@@ -48,7 +58,10 @@ def parse_text(text):
         event = m.group(2).strip() or "提醒"
 
         today = datetime.now()
-        t = datetime.strptime(today.strftime("%Y-%m-%d") + " " + time_part, "%Y-%m-%d %H:%M")
+        try:
+            t = datetime.strptime(today.strftime("%Y-%m-%d") + " " + time_part, "%Y-%m-%d %H:%M")
+        except:
+            return None
 
         # 如果时间已过 → 自动改为明天
         if t < today:
@@ -60,7 +73,7 @@ def parse_text(text):
 
 
 def main():
-    # 🔹 获取 ntfy 消息，增加超时和异常捕获，防止 GitHub Actions 卡住
+    # 🔹 获取 ntfy 消息
     url = f"https://ntfy.sh/{NTFY_TOPIC}/json"
     try:
         resp = requests.get(url, timeout=10)
@@ -78,9 +91,13 @@ def main():
     seen = load_state()
     new_seen = seen[:]
 
+    # 读取 events.txt
     events = []
     if os.path.exists(EVENTS):
-        events = open(EVENTS, encoding="utf-8").read().splitlines()
+        try:
+            events = open(EVENTS, encoding="utf-8").read().splitlines()
+        except:
+            events = []
 
     added, removed = [], []
 
@@ -110,9 +127,12 @@ def main():
 
     # 安全写入 events.txt
     tmp = EVENTS + ".tmp"
-    with open(tmp, "w", encoding="utf-8") as f:
-        f.write("\n".join(events))
-    os.replace(tmp, EVENTS)
+    try:
+        with open(tmp, "w", encoding="utf-8") as f:
+            f.write("\n".join(events))
+        os.replace(tmp, EVENTS)
+    except Exception as e:
+        print("写入 events.txt 失败:", e)
 
     if added:
         print("新增任务:", added)
