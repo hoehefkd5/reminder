@@ -26,6 +26,8 @@ jobs:
         run: pip install requests
 
       - name: inbox
+        env:
+          NTFY_TOPIC: ${{ secrets.NTFY_TOPIC }}
         run: python inbox.py
 
       - name: reminder
