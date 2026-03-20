@@ -9,9 +9,6 @@
 
 <h1>📅 我的任务</h1>
 
-<input id="input" placeholder="明天5:00 起床">
-<button onclick="add()">添加</button>
-
 <ul id="tasks"></ul>
 
 <script>
@@ -23,29 +20,11 @@ function load(){
     ul.innerHTML=""
     t.split("\n").forEach(line=>{
       if(!line.trim()) return
-
       let li=document.createElement("li")
       li.innerText=line
-
-      let btn=document.createElement("button")
-      btn.innerText="删除"
-      btn.onclick=()=>del(line)
-
-      li.appendChild(btn)
       ul.appendChild(li)
     })
   })
-}
-
-function add(){
-  let v=document.getElementById("input").value
-  fetch("https://ntfy.sh/YOUR_TOPIC",{method:"POST",body:"add "+v})
-  alert("已发送")
-}
-
-function del(t){
-  fetch("https://ntfy.sh/YOUR_TOPIC",{method:"POST",body:"del "+t})
-  alert("删除指令已发送")
 }
 
 setInterval(load,5000)
