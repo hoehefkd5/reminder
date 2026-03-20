@@ -1,16 +1,17 @@
-import os
-import json
-import urllib.request
-import base64
+import os, time, json, base64, urllib.request
 from datetime import datetime, timedelta
-from ai_parser import parse, parse_advance
+
+os.environ['TZ'] = 'Asia/Shanghai'
+time.tzset()
 
 NTFY_SERVER = os.environ.get("NTFY_SERVER")
 NTFY_TOPIC = os.environ.get("NTFY_TOPIC")
 
-CHECK_WINDOW = 180  # 分钟
-
 STATE_FILE = "state.json"
+EVENTS = "events.txt"
+
+REPEAT_INTERVAL = 5  # 分钟
+EXPIRE_MINUTES = 60  # 过期删除
 
 
 def load():
@@ -24,8 +25,6 @@ def save(data):
 
 
 def send(title, msg):
-    print("准备发送:", title, msg)
-
     url = f"{NTFY_SERVER}/{NTFY_TOPIC}"
 
     req = urllib.request.Request(
@@ -34,84 +33,52 @@ def send(title, msg):
         method="POST"
     )
 
-    # ✅ 关键修复：标题用 Base64 编码（支持中文）
-    title_b64 = base64.b64encode(title.encode("utf-8")).decode("ascii")
+    title_b64 = base64.b64encode(title.encode()).decode()
     req.add_header("Title", f"=?UTF-8?B?{title_b64}?=")
 
-    res = urllib.request.urlopen(req)
-    print("发送成功:", res.status)
+    urllib.request.urlopen(req)
 
-
-# 🔥 测试发送（可保留）
 
 state = load()
 now = datetime.now()
 
-print("当前时间:", now)
+events = []
+if os.path.exists(EVENTS):
+    events = open(EVENTS, encoding="utf-8").read().splitlines()
 
-with open("events.txt", encoding="utf-8") as f:
+new_events = []
 
-    for line in f:
-        line = line.strip()
+for line in events:
+    try:
+        parts = line.split(" ", 2)
+        t = datetime.strptime(parts[0] + " " + parts[1], "%Y-%m-%d %H:%M")
+        event = parts[2] if len(parts) > 2 else ""
+    except:
+        continue
 
-        if not line or line.startswith("#"):
-            continue
+    diff = (now - t).total_seconds() / 60
 
-        # 解析格式
-        parts = line.split(",", 1)
+    # 🧹 过期删除
+    if diff > EXPIRE_MINUTES:
+        continue
 
-        if len(parts) == 2:
-            time_part, event = parts
-        else:
-            sp = line.split(" ", 1)
-            time_part = sp[0]
-            event = sp[1] if len(sp) > 1 else ""
+    key = line
+    last = state.get(key)
 
-        # 🔥 拆提前时间
-        base_time, advance = parse_advance(time_part)
-        t = parse(base_time)
+    # 🔔 到点后重复提醒
+    if diff >= 0:
+        if not last or (now - datetime.fromisoformat(last)).total_seconds() >= REPEAT_INTERVAL * 60:
+            send("提醒", event)
+            state[key] = now.isoformat()
 
-        print("事件:", line)
-        print("时间:", t)
-        print("提前(分钟):", advance)
+    new_events.append(line)
 
-        if not isinstance(t, datetime):
-            continue
-
-        key_base = line
-        today = now.strftime("%Y-%m-%d")
-
-        # =========================
-        # 🟡 提前提醒
-        # =========================
-        if advance > 0:
-            advance_time = t - timedelta(minutes=advance)
-            diff = (now - advance_time).total_seconds()
-
-            print("提前diff:", diff)
-
-            # ✅ 修复：这里用 diff，不是 diff2
-            if -CHECK_WINDOW * 60 <= diff <= CHECK_WINDOW * 60:
-                key = key_base + "_advance"
-
-                if state.get(key) != today:
-                    send("提前提醒", event)
-                    state[key] = today
-
-        # =========================
-        # 🔴 准时提醒
-        # =========================
-        diff2 = (now - t).total_seconds()
-
-        print("准时diff:", diff2)
-
-        if 0 <= diff2 <= CHECK_WINDOW * 60:
-            key = key_base + "_ontime"
-
-            if state.get(key) != today:
-                send("准时提醒", event)
-                state[key] = today
+# 安全写入
+tmp = EVENTS + ".tmp"
+with open(tmp, "w", encoding="utf-8") as f:
+    f.write("\n".join(new_events))
+os.replace(tmp, EVENTS)
 
 save(state)
 
-print("执行完成")
+print("完成")
