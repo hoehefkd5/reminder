@@ -4,6 +4,7 @@ import json
 import base64
 import urllib.request
 from datetime import datetime, timedelta
+from ai_parser import parse  # 使用 ai_parser
 
 # 设置时区
 os.environ['TZ'] = 'Asia/Shanghai'
@@ -73,16 +74,16 @@ def main():
     new_events = []
 
     for line in events:
-        try:
-            parts = line.split(" ", 2)
-            t = datetime.strptime(parts[0] + " " + parts[1], "%Y-%m-%d %H:%M")
-            event = parts[2] if len(parts) > 2 else ""
-        except:
+        # 用 ai_parser 再解析一次，支持灵活写法
+        parts = line.split(" ", 2)
+        text = parts[2] if len(parts) > 2 else parts[0] + " " + parts[1]
+        t = parse(text)
+        if not t:
             continue
 
         diff = (now - t).total_seconds() / 60
 
-        # 保留未来事件或未超过24小时的事件
+        # 保留未来事件或24小时内事件
         if diff <= EXPIRE_HOURS * 60:
             new_events.append(line)
 
@@ -91,7 +92,7 @@ def main():
             key = line
             last = state.get(key)
             if not last or (now - datetime.fromisoformat(last)).total_seconds() >= REPEAT_INTERVAL * 60:
-                send("提醒", event)
+                send("提醒", text)
                 state[key] = now.isoformat()
 
     tmp = EVENTS + ".tmp"
