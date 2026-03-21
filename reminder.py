@@ -4,7 +4,7 @@ import json
 import base64
 import urllib.request
 from datetime import datetime
-from ai_parser import parse
+from ai_parser import parse  # 使用你写的 ai_parser
 
 os.environ['TZ'] = 'Asia/Shanghai'
 time.tzset()
@@ -15,8 +15,8 @@ NTFY_TOPIC = os.environ.get("NTFY_TOPIC")
 STATE_FILE = "state.json"
 EVENTS = "events.txt"
 
-REPEAT_INTERVAL = 5
-EXPIRE_HOURS = 24
+REPEAT_INTERVAL = 5  # 分钟
+EXPIRE_HOURS = 24    # 小时
 
 
 def load():
@@ -53,12 +53,7 @@ def send(title, msg):
 
 
 def split_event(line):
-    """
-    标准格式：
-    2026-3-20 20:46 叮我一下
-    """
     parts = line.split(" ", 2)
-
     if len(parts) < 2:
         return None, None
 
@@ -82,22 +77,30 @@ def main():
 
         time_part, event = split_event(line)
 
+        # 解析失败 → 保留事件
         if not time_part:
+            new_events.append(line)
             continue
 
         t = parse(time_part)
 
+        # 解析失败 → 保留事件
         if not t:
-            print("解析失败:", line)
+            print("解析失败(保留):", line)
+            new_events.append(line)
             continue
 
         diff = (now - t).total_seconds() / 60
 
-        # ✅ 保留未来事件 + 24小时内
-        if diff <= EXPIRE_HOURS * 60:
-            new_events.append(line)
+        # 默认保留所有事件
+        new_events.append(line)
 
-        # ✅ 到点发送
+        # 超过 24 小时才删除
+        if diff > EXPIRE_HOURS * 60:
+            new_events.remove(line)
+            continue
+
+        # 到点提醒
         if diff >= 0:
             key = line
             last = state.get(key)
