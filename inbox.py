@@ -2,7 +2,7 @@ import os
 import json
 import requests
 from datetime import datetime, timedelta
-from ai_parser import parse  # 导入你写的 ai_parser
+from ai_parser import parse  # 导入 ai_parser 处理时间
 
 NTFY_TOPIC = os.environ.get("NTFY_TOPIC")
 
