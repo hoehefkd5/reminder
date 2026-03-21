@@ -1,13 +1,13 @@
 import os
-import time
 import json
 import base64
 import urllib.request
 import re
 from datetime import datetime, timedelta
 
-os.environ['TZ'] = 'Asia/Shanghai'
-time.tzset()
+# 🔥 强制使用北京时间（解决 GitHub UTC 问题）
+def now_time():
+    return datetime.utcnow() + timedelta(hours=8)
 
 NTFY_SERVER = os.environ.get("NTFY_SERVER")
 NTFY_TOPIC = os.environ.get("NTFY_TOPIC")
@@ -15,8 +15,8 @@ NTFY_TOPIC = os.environ.get("NTFY_TOPIC")
 STATE_FILE = "state.json"
 EVENTS = "events.txt"
 
-REPEAT_INTERVAL = 5  # 分钟
-EXPIRE_HOURS = 24    # 小时
+REPEAT_INTERVAL = 5   # 分钟重复提醒
+EXPIRE_HOURS = 24     # 24小时后删除
 
 
 def load():
@@ -33,6 +33,10 @@ def save(data):
 
 
 def send(title, msg):
+    if not NTFY_SERVER or not NTFY_TOPIC:
+        print("NTFY 未配置")
+        return
+
     url = f"{NTFY_SERVER}/{NTFY_TOPIC}"
 
     req = urllib.request.Request(
@@ -51,76 +55,65 @@ def send(title, msg):
         print("发送失败:", e)
 
 
-def split_event(line):
-    """
-    拆分时间和事件内容
-    - 10:55 叮我一下 -> 10:55, 叮我一下
-    - 11:00 开始做饭 -> 11:00, 开始做饭
-    """
-    parts = line.split(" ", 2)
-
-    if len(parts) < 2:
-        return None, None
-
-    time_part = parts[0] + " " + parts[1]  # 时间部分
-    event = parts[2] if len(parts) > 2 else ""  # 事件部分
-
-    return time_part, event
-
-
 def parse_time(line):
     """
-    解析时间部分
-    支持：
-    - 10:30 叮我一下
-    - 明天 10:30 吃饭
-    - 2027-5-8 12:00 生日
+    支持格式：
+    10:30 吃饭
+    明天 10:30 吃饭
+    2027-5-8 12:00 生日
     """
-    now = datetime.now()
 
-    # 解析“YYYY-MM-DD HH:MM”
-    m = re.match(r'(\d{4})-(\d{1,2})-(\d{1,2}) (\d{1,2}):(\d{2})', line)
-    if m:
-        y, mo, d, h, mi = map(int, m.groups())
-        return datetime(y, mo, d, h, mi), line.split(" ", 2)[-1]
+    now = now_time()
 
-    # 解析“明天 HH:MM”
-    m = re.match(r'明天 (\d{1,2}):(\d{2})', line)
+    # YYYY-M-D HH:MM
+    m = re.match(r'(\d{4})-(\d{1,2})-(\d{1,2}) (\d{1,2}):(\d{2}) (.+)', line)
     if m:
-        h, mi = map(int, m.groups())
+        y, mo, d, h, mi, event = m.groups()
+        return datetime(int(y), int(mo), int(d), int(h), int(mi)), event
+
+    # 明天 HH:MM
+    m = re.match(r'明天 (\d{1,2}):(\d{2}) (.+)', line)
+    if m:
+        h, mi, event = m.groups()
         base = now + timedelta(days=1)
-        return datetime(base.year, base.month, base.day, h, mi), line.split(" ", 2)[-1]
+        return datetime(base.year, base.month, base.day, int(h), int(mi)), event
 
-    # 解析“HH:MM”
-    m = re.match(r'(\d{1,2}):(\d{2})', line)
+    # HH:MM
+    m = re.match(r'(\d{1,2}):(\d{2}) (.+)', line)
     if m:
-        h, mi = map(int, m.groups())
-        t = datetime(now.year, now.month, now.day, h, mi)
+        h, mi, event = m.groups()
+        t = datetime(now.year, now.month, now.day, int(h), int(mi))
 
         # 已过 → 明天
         if t < now:
             t += timedelta(days=1)
 
-        return t, line.split(" ", 1)[-1]
+        return t, event
 
     return None, None
 
 
 def main():
     state = load()
-    now = datetime.now()
+    now = now_time()
 
     if not os.path.exists(EVENTS):
-        return
+        open(EVENTS, "w").close()
 
     events = open(EVENTS, encoding="utf-8").read().splitlines()
     new_events = []
 
     for line in events:
 
+        line = line.strip()
+
+        # ✅ 跳过空行（核心修复）
+        if not line:
+            continue
+
         t, event = parse_time(line)
 
-        # 解析失败 → 永远保留（不会再清空）
+        # ❗解析失败 → 保留，不删除
         if not t:
             print("解析失败(保留):", line)
             new_events.append(line)
@@ -131,12 +124,12 @@ def main():
         # 默认保留
         new_events.append(line)
 
-        # 24小时后删除
+        # ⏰ 24小时后删除
         if diff > EXPIRE_HOURS * 60:
             new_events.remove(line)
             continue
 
-        # 到点提醒
+        # 🔔 到点提醒
         if diff >= 0:
             key = line
             last = state.get(key)
@@ -145,7 +138,7 @@ def main():
                 send("提醒", event)
                 state[key] = now.isoformat()
 
-    # 写回文件
+    # 安全写回
     tmp = EVENTS + ".tmp"
     with open(tmp, "w", encoding="utf-8") as f:
         f.write("\n".join(new_events))
