@@ -75,19 +75,19 @@ def main():
 
     for line in events:
 
+        # 提取时间和事件
         time_part, event = split_event(line)
 
-        # 解析失败 → 保留事件
         if not time_part:
+            # 解析失败，保留原事件
             new_events.append(line)
             continue
 
-        t = parse(time_part)
+        t = parse(time_part)  # 只解析时间部分
 
-        # 解析失败 → 保留事件
         if not t:
             print("解析失败(保留):", line)
-            new_events.append(line)
+            new_events.append(line)  # 解析失败时保留事件
             continue
 
         diff = (now - t).total_seconds() / 60
