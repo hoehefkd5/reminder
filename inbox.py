@@ -2,7 +2,7 @@ import os
 import json
 import requests
 from datetime import datetime, timedelta
-from ai_parser import parse
+from ai_parser import parse  # 导入你写的 ai_parser
 
 NTFY_TOPIC = os.environ.get("NTFY_TOPIC")
 
@@ -26,17 +26,10 @@ def save_state(data):
         print("保存 inbox_state 失败:", e)
 
 
-def extract_time_and_event(text):
-    """
-    把 '20:46 叮我一下' 拆成：
-    时间部分：20:46
-    内容部分：叮我一下
-    """
+def split_input(text):
     parts = text.strip().split(" ", 1)
-
     if len(parts) == 1:
         return parts[0], ""
-
     return parts[0], parts[1]
 
 
@@ -45,15 +38,13 @@ def parse_text(text):
     if not text:
         return None
 
-    # 删除
     if text.startswith("del "):
         return {"action": "del", "content": text[4:].strip()}
 
-    # add 前缀
     if text.startswith("add "):
         text = text[4:].strip()
 
-    time_part, event = extract_time_and_event(text)
+    time_part, event = split_input(text)
 
     t = parse(time_part)
 
@@ -61,7 +52,6 @@ def parse_text(text):
         print("解析失败:", text)
         return None
 
-    # 已过时间 → 自动+1天
     if t < datetime.now():
         t += timedelta(days=1)
 
