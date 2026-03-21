@@ -5,13 +5,8 @@ import base64
 import urllib.request
 import re
 from datetime import datetime, timedelta
-from ai_parser import parse  # 使用你写的 ai_parser
 
-# 自动适配本地时区，默认 +8小时（北京时间）
-from datetime import timezone
-
-os.environ['TZ'] = 'Asia/Shanghai'  # 不再硬编码时区，适配不同地区
-
+os.environ['TZ'] = 'Asia/Shanghai'
 time.tzset()
 
 NTFY_SERVER = os.environ.get("NTFY_SERVER")
@@ -58,10 +53,9 @@ def send(title, msg):
 
 def split_event(line):
     """
-    提取时间和事件内容
-    示例:
-    - "10:25 叮我一下"
-    - "明天 10:25 吃饭"
+    拆分时间和事件内容
+    - 10:55 叮我一下 -> 10:55, 叮我一下
+    - 11:00 开始做饭 -> 11:00, 开始做饭
     """
     parts = line.split(" ", 2)
 
@@ -69,14 +63,15 @@ def split_event(line):
         return None, None
 
     time_part = parts[0] + " " + parts[1]  # 时间部分
-    event = parts[2] if len(parts) > 2 else ""  # 事件内容部分
+    event = parts[2] if len(parts) > 2 else ""  # 事件部分
 
     return time_part, event
 
 
 def parse_time(line):
     """
-    时间解析支持格式：
+    解析时间部分
+    支持：
     - 10:30 叮我一下
     - 明天 10:30 吃饭
     - 2027-5-8 12:00 生日
