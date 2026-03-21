@@ -2,7 +2,8 @@ import os
 import time
 import json
 import base64
-import urllib.request
+import urllib.requesti
+import re
 from datetime import datetime, timedelta
 from ai_parser import parse  # 使用你写的 ai_parser
 
