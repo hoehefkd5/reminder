@@ -3,8 +3,8 @@ import time
 import json
 import base64
 import urllib.request
-from datetime import datetime
-from ai_parser import parse  # 使用你写的 ai_parser
+from datetime import datetime, timedelta
+import re
 
 os.environ['TZ'] = 'Asia/Shanghai'
 time.tzset()
@@ -15,8 +15,8 @@ NTFY_TOPIC = os.environ.get("NTFY_TOPIC")
 STATE_FILE = "state.json"
 EVENTS = "events.txt"
 
-REPEAT_INTERVAL = 5  # 分钟
-EXPIRE_HOURS = 24    # 小时
+REPEAT_INTERVAL = 5
+EXPIRE_HOURS = 24
 
 
 def load():
@@ -43,7 +43,6 @@ def send(title, msg):
 
     title_b64 = base64.b64encode(title.encode("utf-8")).decode()
     req.add_header("Title", f"=?UTF-8?B?{title_b64}?=")
-    req.add_header("Content-Type", "text/plain; charset=utf-8")
 
     try:
         urllib.request.urlopen(req, timeout=10)
@@ -52,55 +51,75 @@ def send(title, msg):
         print("发送失败:", e)
 
 
-def split_event(line):
-    parts = line.split(" ", 2)
-    if len(parts) < 2:
-        return None, None
+def parse_time(line):
+    """
+    支持：
+    10:30 叮我
+    明天 10:30 吃饭
+    2027-5-8 12:00 生日
+    """
 
-    time_part = parts[0] + " " + parts[1]
-    event = parts[2] if len(parts) > 2 else ""
+    now = datetime.now()
 
-    return time_part, event
+    # YYYY-M-D HH:MM
+    m = re.match(r'(\d{4})-(\d{1,2})-(\d{1,2}) (\d{1,2}):(\d{2})', line)
+    if m:
+        y, mo, d, h, mi = map(int, m.groups())
+        return datetime(y, mo, d, h, mi), line.split(" ", 2)[-1]
+
+    # 明天 HH:MM
+    m = re.match(r'明天 (\d{1,2}):(\d{2})', line)
+    if m:
+        h, mi = map(int, m.groups())
+        base = now + timedelta(days=1)
+        return datetime(base.year, base.month, base.day, h, mi), line.split(" ", 2)[-1]
+
+    # HH:MM（最重要）
+    m = re.match(r'(\d{1,2}):(\d{2})', line)
+    if m:
+        h, mi = map(int, m.groups())
+        t = datetime(now.year, now.month, now.day, h, mi)
+
+        # 已过 → 明天
+        if t < now:
+            t += timedelta(days=1)
+
+        return t, line.split(" ", 1)[-1]
+
+    return None, None
 
 
 def main():
     state = load()
     now = datetime.now()
 
-    events = []
-    if os.path.exists(EVENTS):
-        events = open(EVENTS, encoding="utf-8").read().splitlines()
+    if not os.path.exists(EVENTS):
+        return
 
+    events = open(EVENTS, encoding="utf-8").read().splitlines()
     new_events = []
 
     for line in events:
 
-        # 提取时间和事件
-        time_part, event = split_event(line)
+        t, event = parse_time(line)
 
-        if not time_part:
-            # 解析失败，保留原事件
-            new_events.append(line)
-            continue
-
-        t = parse(time_part)  # 只解析时间部分
-
+        # ❗解析失败 → 永远保留（不会再清空）
         if not t:
             print("解析失败(保留):", line)
-            new_events.append(line)  # 解析失败时保留事件
+            new_events.append(line)
             continue
 
         diff = (now - t).total_seconds() / 60
 
-        # 默认保留所有事件
+        # 默认保留
         new_events.append(line)
 
-        # 超过 24 小时才删除
+        # 24小时后删除
         if diff > EXPIRE_HOURS * 60:
             new_events.remove(line)
             continue
 
-        # 到点提醒
+        # 到点发送
         if diff >= 0:
             key = line
             last = state.get(key)
@@ -109,13 +128,13 @@ def main():
                 send("提醒", event)
                 state[key] = now.isoformat()
 
+    # 写回文件
     tmp = EVENTS + ".tmp"
     with open(tmp, "w", encoding="utf-8") as f:
         f.write("\n".join(new_events))
     os.replace(tmp, EVENTS)
 
     save(state)
-
     print("完成")
 
 
