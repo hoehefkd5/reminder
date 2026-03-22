@@ -53,8 +53,7 @@ def send(title, msg):
         print("发送成功:", msg)
     except Exception as e:
         print("发送失败:", e)
-# 在 main() 中调用 send() 发送测试消息
-send("测试", "这是一条测试消息")
+
 
 def parse_time(line):
     """
@@ -91,7 +90,7 @@ def parse_time(line):
 
         return t, event
 
-    return None, None
+    return None, line.strip()
 
 
 def main():
