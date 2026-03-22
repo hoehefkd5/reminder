@@ -5,7 +5,7 @@ import urllib.request
 import re
 from datetime import datetime, timedelta
 
-# 🔥 强制使用北京时间（解决 GitHub UTC 问题）
+# 强制使用北京时间（解决 GitHub UTC 问题）
 def now_time():
     return datetime.utcnow() + timedelta(hours=8)
 
@@ -57,7 +57,7 @@ def send(title, msg):
 
 def parse_time(line):
     """
-    支持格式：
+    解析时间部分，支持：
     10:30 吃饭
     明天 10:30 吃饭
     2027-5-8 12:00 生日
@@ -65,20 +65,20 @@ def parse_time(line):
 
     now = now_time()
 
-    # YYYY-M-D HH:MM
+    # 解析“YYYY-MM-DD HH:MM”
     m = re.match(r'(\d{4})-(\d{1,2})-(\d{1,2}) (\d{1,2}):(\d{2}) (.+)', line)
     if m:
         y, mo, d, h, mi, event = m.groups()
         return datetime(int(y), int(mo), int(d), int(h), int(mi)), event
 
-    # 明天 HH:MM
+    # 解析“明天 HH:MM”
     m = re.match(r'明天 (\d{1,2}):(\d{2}) (.+)', line)
     if m:
         h, mi, event = m.groups()
         base = now + timedelta(days=1)
         return datetime(base.year, base.month, base.day, int(h), int(mi)), event
 
-    # HH:MM
+    # 解析“HH:MM”
     m = re.match(r'(\d{1,2}):(\d{2}) (.+)', line)
     if m:
         h, mi, event = m.groups()
@@ -90,6 +90,7 @@ def parse_time(line):
 
         return t, event
 
+    # 返回失败：未能解析
     return None, line.strip()
 
 
@@ -107,15 +108,16 @@ def main():
 
         line = line.strip()
 
-        # ✅ 跳过空行（核心修复）
+        # 跳过空行
         if not line:
             continue
 
         t, event = parse_time(line)
 
-        # ❗解析失败 → 保留，不删除
+        # 解析失败 → 保留并推送
         if not t:
             print("解析失败(保留):", line)
+            send("提醒", event)  # 保证推送
             new_events.append(line)
             continue
 
