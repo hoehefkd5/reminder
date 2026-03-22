@@ -24,12 +24,16 @@ def load():
         return {}
     try:
         return json.load(open(STATE_FILE, "r", encoding="utf-8"))
-    except:
+    except Exception as e:
+        print(f"加载 state.json 失败: {e}")
         return {}
 
 
 def save(data):
-    json.dump(data, open(STATE_FILE, "w", encoding="utf-8"))
+    try:
+        json.dump(data, open(STATE_FILE, "w", encoding="utf-8"))
+    except Exception as e:
+        print(f"保存 state.json 失败: {e}")
 
 
 def send(title, msg):
@@ -38,7 +42,7 @@ def send(title, msg):
         return
 
     url = f"{NTFY_SERVER}/{NTFY_TOPIC}"
-    print(f"发送消息到: {url}")  # 这里我们打印发送地址，确认请求是否正确
+    print(f"发送消息到: {url}")  # 打印发送地址
 
     req = urllib.request.Request(
         url,
@@ -50,11 +54,11 @@ def send(title, msg):
     req.add_header("Title", f"=?UTF-8?B?{title_b64}?=")
 
     try:
-        print(f"尝试发送消息: {msg}")  # 记录尝试发送的消息内容
+        print(f"尝试发送消息: {msg}")  # 记录消息内容
         urllib.request.urlopen(req, timeout=10)
         print("发送成功:", msg)
     except Exception as e:
-        print("发送失败:", e)
+        print(f"发送失败: {e}")
 
 
 def parse_time(line):
@@ -107,7 +111,6 @@ def main():
     new_events = []
 
     for line in events:
-
         line = line.strip()
 
         # 跳过空行
