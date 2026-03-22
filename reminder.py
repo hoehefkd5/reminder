@@ -38,6 +38,7 @@ def send(title, msg):
         return
 
     url = f"{NTFY_SERVER}/{NTFY_TOPIC}"
+    print(f"发送消息到: {url}")  # 这里我们打印发送地址，确认请求是否正确
 
     req = urllib.request.Request(
         url,
@@ -49,6 +50,7 @@ def send(title, msg):
     req.add_header("Title", f"=?UTF-8?B?{title_b64}?=")
 
     try:
+        print(f"尝试发送消息: {msg}")  # 记录尝试发送的消息内容
         urllib.request.urlopen(req, timeout=10)
         print("发送成功:", msg)
     except Exception as e:
@@ -137,6 +139,7 @@ def main():
             last = state.get(key)
 
             if not last or (now - datetime.fromisoformat(last)).total_seconds() >= REPEAT_INTERVAL * 60:
+                print(f"事件触发: {line}")  # 确保事件触发的日志输出
                 send("提醒", event)
                 state[key] = now.isoformat()
 
