@@ -5,7 +5,7 @@ import urllib.request
 from datetime import datetime, timedelta
 import re
 
-# 强制使用北京时间（解决 GitHub UTC 问题）
+# ✅ 北京时间
 def now_time():
     return datetime.utcnow() + timedelta(hours=8)
 
@@ -16,7 +16,8 @@ STATE_FILE = "state.json"
 EVENTS = "events.txt"
 
 REPEAT_INTERVAL = 5   # 分钟重复提醒
-EXPIRE_HOURS = 24     # 24小时后删除
+EXPIRE_HOURS = 24     # 24小时删除
+TRIGGER_WINDOW = 10   # 🔥 关键：允许延迟10分钟内触发
 
 
 def load():
@@ -24,16 +25,12 @@ def load():
         return {}
     try:
         return json.load(open(STATE_FILE, "r", encoding="utf-8"))
-    except Exception as e:
-        print(f"加载 state.json 失败: {e}")
+    except:
         return {}
 
 
 def save(data):
-    try:
-        json.dump(data, open(STATE_FILE, "w", encoding="utf-8"))
-    except Exception as e:
-        print(f"保存 state.json 失败: {e}")
+    json.dump(data, open(STATE_FILE, "w", encoding="utf-8"))
 
 
 def send(title, msg):
@@ -42,7 +39,6 @@ def send(title, msg):
         return
 
     url = f"{NTFY_SERVER}/{NTFY_TOPIC}"
-    print(f"发送消息到: {url}")  # 打印发送地址
 
     req = urllib.request.Request(
         url,
@@ -54,55 +50,45 @@ def send(title, msg):
     req.add_header("Title", f"=?UTF-8?B?{title_b64}?=")
 
     try:
-        print(f"尝试发送消息: {msg}")  # 记录消息内容
         urllib.request.urlopen(req, timeout=10)
-        print("发送成功:", msg)
+        print("✅ 发送成功:", msg)
     except Exception as e:
-        print(f"发送失败: {e}")
+        print("❌ 发送失败:", e)
 
 
 def parse_time(line):
-    """
-    解析时间部分，支持：
-    10:30 吃饭
-    明天 10:30 吃饭
-    2027-5-8 12:00 生日
-    """
-
     now = now_time()
 
-    # 解析“YYYY-MM-DD HH:MM”
+    # YYYY-MM-DD HH:MM
     m = re.match(r'(\d{4})-(\d{1,2})-(\d{1,2}) (\d{1,2}):(\d{2}) (.+)', line)
     if m:
         y, mo, d, h, mi, event = m.groups()
         return datetime(int(y), int(mo), int(d), int(h), int(mi)), event
 
-    # 解析“明天 HH:MM”
+    # 明天
     m = re.match(r'明天 (\d{1,2}):(\d{2}) (.+)', line)
     if m:
         h, mi, event = m.groups()
         base = now + timedelta(days=1)
         return datetime(base.year, base.month, base.day, int(h), int(mi)), event
 
-    # 解析“HH:MM”
+    # 今天 HH:MM
     m = re.match(r'(\d{1,2}):(\d{2}) (.+)', line)
     if m:
         h, mi, event = m.groups()
         t = datetime(now.year, now.month, now.day, int(h), int(mi))
 
-        # 已过 → 明天
-        if t < now:
-            t += timedelta(days=1)
-
+        # 已过 → 还是今天（🔥关键，不自动+1天）
         return t, event
 
-    # 返回失败：未能解析
-    return None, line.strip()
+    return None, line
 
 
 def main():
     state = load()
     now = now_time()
+
+    print("当前时间:", now)
 
     if not os.path.exists(EVENTS):
         open(EVENTS, "w").close()
@@ -112,48 +98,42 @@ def main():
 
     for line in events:
         line = line.strip()
-
-        # 跳过空行
         if not line:
             continue
 
         t, event = parse_time(line)
 
-        # 解析失败 → 保留并推送
         if not t:
-            print("解析失败(保留):", line)
-            send("提醒", event)  # 保证推送
+            print("⚠️ 解析失败:", line)
             new_events.append(line)
             continue
 
         diff = (now - t).total_seconds() / 60
 
-        # 默认保留
-        new_events.append(line)
+        print(f"🕒 {line} | 时间差: {diff:.2f} 分钟")
 
-        # ⏰ 24小时后删除
-        if diff > EXPIRE_HOURS * 60:
-            new_events.remove(line)
-            continue
+        key = line
+        last = state.get(key)
 
-        # 🔔 到点提醒
-        if diff >= 0:
-            key = line
-            last = state.get(key)
-
+        # 🔥 核心逻辑：允许延迟触发
+        if -1 <= diff <= TRIGGER_WINDOW:
             if not last or (now - datetime.fromisoformat(last)).total_seconds() >= REPEAT_INTERVAL * 60:
-                print(f"事件触发: {line}")  # 确保事件触发的日志输出
+                print("🚀 触发提醒:", line)
                 send("提醒", event)
                 state[key] = now.isoformat()
 
-    # 安全写回
+        # ⏰ 24小时后删除
+        if diff <= EXPIRE_HOURS * 60:
+            new_events.append(line)
+
+    # 写回（不会乱删）
     tmp = EVENTS + ".tmp"
     with open(tmp, "w", encoding="utf-8") as f:
         f.write("\n".join(new_events))
     os.replace(tmp, EVENTS)
 
     save(state)
-    print("完成")
+    print("✅ 完成")
 
 
 if __name__ == "__main__":
